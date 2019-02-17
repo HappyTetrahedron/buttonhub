@@ -51,12 +51,14 @@ def handle_action(device_id):
         url = url.format(battery=str(battery), device=str(device_id))
 
     method = next_state.get('method') or 'get'
+    headers = next_state.get('headers')
     data = next_state.get('payload')
     if data:
         if '{battery}' in data or '{device}' in data:
             data = data.format(battery=str(battery), device=str(device_id))
 
-    response = requests.request(method, url, data=data)
+    print(data)
+    response = requests.request(method, url, data=data, headers=headers)
     print(response.text)
 
     button_config[state_key] = state_id

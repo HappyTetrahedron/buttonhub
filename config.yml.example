@@ -4,6 +4,8 @@ buttons:
       - url: http://test_url.example.com/api/dosomething
         payload: '{"test":"payload"}'
         method: put
+        headers:
+          Content-Type: application/json
       - url: http://test_url.example.com/api/dosomething?foo=true
         payload: 'action=yell&time=now'
         method: post
