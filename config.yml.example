@@ -1,0 +1,16 @@
+buttons:
+  my_button_name:
+    single:
+      - url: http://test_url.example.com/api/dosomething
+        payload: '{"test":"payload"}'
+        method: put
+      - url: http://test_url.example.com/api/dosomething?foo=true
+        payload: 'action=yell&time=now'
+        method: post
+    double:
+      - url: http://test_url.example.com/api/dosomething
+        method: post
+    long:
+      - url: http://simple_service.com/get
+host: 0.0.0.0
+port: 7788
