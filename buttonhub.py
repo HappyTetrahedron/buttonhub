@@ -1,13 +1,21 @@
+#!/usr/bin/env python
+
 from flask import Flask
 from flask import request
 import yaml
 import requests
+import datetime
 from optparse import OptionParser
 
 
 app = Flask(__name__)
 
 config = None
+
+CAROUSEL = 'carousel'
+FLOOD = 'flood'
+CONDITION_ALL = 'condition_all'
+CONDITION_FIRST = 'condition_first'
 
 
 @app.route("/device/<device_id>")
@@ -26,44 +34,112 @@ def handle_action(device_id):
 
     button_config = config['buttons'].get(device_id)
     if not button_config:
-        print("No button config found")
+        print("No button config found for {}".format(device_id))
         return ""
 
-    endpoints = button_config.get(action)
-    if not endpoints:
-        print("No endpoints found")
+    action_config = button_config.get(action)
+    if not action_config:
+        print("No config found for {}".format(action))
         return ""
 
-    state_key = '{}state'.format(action)
-    if state_key in button_config:
-        state_id = button_config[state_key]
-        state_id = (state_id + 1) % len(endpoints)
-    else:
-        state_id = 0
+    actions = action_config.get('actions')
+    if not actions:
+        print("No actions found for {}".format(action))
+        return ""
 
-    next_state = endpoints[state_id]
+    mode = action_config.get('mode') or FLOOD
 
-    url = next_state.get('url')
+    if mode == CAROUSEL:
+        state_key = 'state'
+        if state_key in action_config:
+            state_id = action_config[state_key]
+            state_id = (state_id + 1) % len(actions)
+        else:
+            state_id = 0
+
+        next_state = actions[state_id]
+        response = do_request(next_state, battery, device_id)
+        print(response.text)
+        action_config[state_key] = state_id
+
+    if mode == FLOOD:
+        for req in actions:
+            response = do_request(req, battery, device_id)
+            print(response.text)
+
+    if mode in [CONDITION_ALL, CONDITION_FIRST]:
+        for req in actions:
+            do_it = True
+            if 'condition' in req:
+                do_it = check_condition(req['condition'], battery, device_id)
+            if do_it:
+                print("Performing request due to condition match")
+                response = do_request(req, battery, device_id)
+                print(response.text)
+                if mode == CONDITION_FIRST:
+                    return ""
+
+    return ""
+
+
+def check_condition(condition, battery, device_id):
+    passes = True
+    if 'battery' in condition:
+        bat = condition['battery']
+        if 'lt' in bat:
+            passes = passes and int(battery) < bat['lt']
+        if 'gt' in bat:
+            passes = passes and int(battery) > bat['gt']
+    if 'time' in condition:
+        now = datetime.datetime.now().time()
+        time = condition['time']
+        if 'lt' in time:
+            h, m = tuple(time['lt'].split(':'))
+            passes = passes and (now.hour < int(h) or (now.hour == int(h) and now.minute < int(m)))
+        if 'gt' in time:
+            h, m = tuple(time['gt'].split(':'))
+            passes = passes and (now.hour > int(h) or (now.hour == int(h) and now.minute > int(m)))
+    if 'and' in condition:
+        passes = passes and all([check_condition(c, battery, device_id) for c in condition['and']])
+    if 'or' in condition:
+        passes = passes and any([check_condition(c, battery, device_id) for c in condition['or']])
+    if 'request' in condition:
+        req = condition['request']
+        response = do_request(req, battery, device_id)
+        if 'response' in req:
+            for response_condition in req['response']:
+                if 'path' in response_condition:
+                    path = response_condition['path']
+                    path = path.split('.')
+                    current_part = response.json()
+                    for key in path:
+                        if key not in current_part:
+                            passes = False
+                        else:
+                            current_part = current_part[key]
+                    if 'value' in response_condition:
+                        passes = passes and current_part == response_condition['value']
+        else:
+            passes = passes and response.status_code // 100 == 2
+    return passes
+
+
+def do_request(req, battery, device_id):
+    url = req.get('url')
     if not url:
         print("No URL defined")
         return ""
     if '{battery}' in url or '{device}' in url:
         url = url.format(battery=str(battery), device=str(device_id))
 
-    method = next_state.get('method') or 'get'
-    headers = next_state.get('headers')
-    data = next_state.get('payload')
+    method = req.get('method') or 'get'
+    headers = req.get('headers')
+    data = req.get('payload')
     if data:
         if '{battery}' in data or '{device}' in data:
             data = data.format(battery=str(battery), device=str(device_id))
 
-    print(data)
-    response = requests.request(method, url, data=data, headers=headers)
-    print(response.text)
-
-    button_config[state_key] = state_id
-
-    return ""
+    return requests.request(method, url, data=data, headers=headers)
 
 
 if __name__ == '__main__':
