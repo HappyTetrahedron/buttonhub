@@ -82,17 +82,16 @@ def handle_action(device_id):
     return ""
 
 
-def check_condition(condition, battery, device_id):
+def check_condition(condition, battery, device_id, carry_value=None):
     passes = True
+    if not isinstance(condition, dict):
+        return carry_value == condition
     if 'battery' in condition:
-        bat = condition['battery']
-        if 'lt' in bat:
-            passes = passes and int(battery) < bat['lt']
-        if 'gt' in bat:
-            passes = passes and int(battery) > bat['gt']
+        passes = passes and check_condition(condition['battery'], battery, device_id, battery)
     if 'time' in condition:
         now = datetime.datetime.now().time()
         time = condition['time']
+        # handle gt and lt separately for time as it is a special data type
         if 'lt' in time:
             h, m = tuple(time['lt'].split(':'))
             passes = passes and (now.hour < int(h) or (now.hour == int(h) and now.minute < int(m)))
@@ -100,9 +99,9 @@ def check_condition(condition, battery, device_id):
             h, m = tuple(time['gt'].split(':'))
             passes = passes and (now.hour > int(h) or (now.hour == int(h) and now.minute > int(m)))
     if 'and' in condition:
-        passes = passes and all([check_condition(c, battery, device_id) for c in condition['and']])
+        passes = passes and all([check_condition(c, battery, device_id, carry_value) for c in condition['and']])
     if 'or' in condition:
-        passes = passes and any([check_condition(c, battery, device_id) for c in condition['or']])
+        passes = passes and any([check_condition(c, battery, device_id, carry_value) for c in condition['or']])
     if 'request' in condition:
         req = condition['request']
         response = do_request(req, battery, device_id)
@@ -118,9 +117,13 @@ def check_condition(condition, battery, device_id):
                         else:
                             current_part = current_part[key]
                     if 'value' in response_condition:
-                        passes = passes and current_part == response_condition['value']
+                        passes = passes and check_condition(response_condition['value'], battery, device_id, current_part)
         else:
             passes = passes and response.status_code // 100 == 2
+    if 'lt' in condition:
+        passes = passes and int(carry_value) < condition['lt']
+    if 'gt' in condition:
+        passes = passes and int(carry_value) > condition['gt']
     return passes
 
 
