@@ -128,6 +128,11 @@ def check_condition(condition, battery, device_id, carry_value=None):
 
 
 def do_request(req, battery, device_id):
+    if 'endpoints' in req:
+        last_response = None
+        for sub_req in req['endpoints']:
+            last_response = do_request(sub_req, battery, device_id)
+        return last_response
     url = req.get('url')
     if not url:
         print("No URL defined")
