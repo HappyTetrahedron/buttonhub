@@ -165,6 +165,8 @@ def check_data_condition(condition, data, battery, device_id):
 
 
 def do_request(req, battery, device_id):
+    if client is None:
+        return
     if 'endpoints' in req:
         for sub_req in req['endpoints']:
             do_request(sub_req, battery, device_id)
@@ -215,10 +217,13 @@ if __name__ == '__main__':
     with open(opts.config, 'r') as configfile:
         config = yaml.load(configfile)
 
-    client = mqtt.Client("buttonhub")
-    client.connect(config['broker'])
-    client.on_message = handle_mqtt
-    client.subscribe("#")
-    client.loop_start()
+    if 'broker' in config:
+        client = mqtt.Client("buttonhub")
+        client.connect(config['broker'])
+        client.on_message = handle_mqtt
+        client.subscribe("#")
+        client.loop_start()
     app.run(config['host'], config['port'])
-    client.loop_stop()
+
+    if 'broker' in config:
+        client.loop_stop()
