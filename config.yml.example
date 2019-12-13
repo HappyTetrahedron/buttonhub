@@ -1,6 +1,8 @@
 buttons:
   my_button_name:
     single:
+      mode: carousel
+      actions:
       - url: http://test_url.example.com/api/dosomething
         payload: '{"test":"payload"}'
         method: put
@@ -10,9 +12,11 @@ buttons:
         payload: 'action=yell&time=now'
         method: post
     double:
+      actions:
       - url: http://test_url.example.com/api/dosomething
         method: post
     long:
+      actions:
       - url: http://simple_service.com/get
 host: 0.0.0.0
 port: 7788
