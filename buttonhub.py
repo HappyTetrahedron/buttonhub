@@ -165,14 +165,14 @@ def check_data_condition(condition, data, battery, device_id):
 
 
 def do_request(req, battery, device_id):
-    if client is None:
-        return
     if 'endpoints' in req:
         for sub_req in req['endpoints']:
             do_request(sub_req, battery, device_id)
     if 'url' in req:
         do_http(req, battery, device_id)
     if 'topic' in req:
+        if client is None:
+            return
         do_mqtt(req, battery, device_id, client)
 
 
