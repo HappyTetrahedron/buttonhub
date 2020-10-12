@@ -2,6 +2,7 @@
 
 import datetime
 import json
+import time
 from optparse import OptionParser
 
 import paho.mqtt.client as mqtt
@@ -165,6 +166,8 @@ def check_data_condition(condition, data, battery, device_id):
 
 
 def do_request(req, battery, device_id):
+    if 'delay' in req:
+        time.sleep(req['delay'])
     if 'endpoints' in req:
         for sub_req in req['endpoints']:
             do_request(sub_req, battery, device_id)
