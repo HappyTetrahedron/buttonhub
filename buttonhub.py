@@ -84,13 +84,17 @@ def handle_request(device_id):
 
 
 def handle_mqtt(_client, userdata, message):
-    parsed_payload = json.loads(message.payload.decode('UTF-8'))
+    try:
+        parsed_payload = json.loads(message.payload.decode('UTF-8'))
+    except json.decoder.JSONDecodeError:
+        parsed_payload = message.payload
     topic = message.topic
     action = 'default'
 
     state[topic] = parsed_payload
-
-    topics_config = config['topics'].get(topic)
+    topics_config = None
+    if 'topics' in config:
+        topics_config = config['topics'].get(topic)
     if not topics_config:
         print("No topic config found for {}".format(topic))
         return
