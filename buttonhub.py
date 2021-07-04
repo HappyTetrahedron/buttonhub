@@ -222,9 +222,14 @@ if __name__ == '__main__':
 
     if 'broker' in config:
         client = mqtt.Client("buttonhub")
-        client.connect(config['broker'])
+        client.connect(config['broker']['host'], config['broker']['port'])
+        if 'userauth' in config['broker']:
+            client.username_pw_set(
+                config['broker']['userauth']['user'],
+                password=config['broker']['userauth']['password']
+            )
         client.on_message = handle_mqtt
-        client.subscribe("#")
+        client.subscribe(config['broker'].get('subscribe', '#'))
         client.loop_start()
     app.run(config['host'], config['port'])
 
