@@ -13,7 +13,7 @@ from flask import request
 
 app = Flask(__name__)
 state = {}
-client = None
+mqtt_client = None
 
 config = None
 
@@ -22,61 +22,94 @@ FLOOD = 'flood'
 CONDITION_ALL = 'condition_all'
 CONDITION_FIRST = 'condition_first'
 
+ACTIONS = {
+    '1': 'single',
+    '2': 'double',
+    '3': 'long',
+    '4': 'touch',
+    '5': 'wheel',
+    '6': 'battery',
+    '8': 'rise',
+    '9': 'fall',
+    '11': 'wheel_final',
+    '14': 'night',
+    '15': 'twilight',
+    '16': 'day',
+}
 
-@app.route("/device/<device_id>")
+
+def _get_action(request_args):
+    return ACTIONS.get(request_args.get('action'), 'not_found')
+
+
+def _get_context_for_device_request(device_id, request_args):
+    return {
+        'device_id': device_id,
+        'battery': request_args.get('battery'),
+    }
+
+
+def _get_context_for_mqtt_message(message):
+    return {
+        'topic': message.topic,
+    }
+
+
+def _apply_context_to_template(template, context):
+    for key in context:
+        placeholder = '{{{key}}}'.format(key=key)
+        if placeholder in template:
+            template = template.replace(placeholder, str(context[key]))
+    return template
+
+
+@app.route('/device/<device_id>')
 def handle_request(device_id):
-    action = request.args.get('action')
-    battery = request.args.get('battery')
+    action = _get_action(request.args)
+    context = _get_context_for_device_request(device_id, request.args)
 
-    action = 'single' if action == '1' else \
-             'double' if action == '2' else \
-             'long' if action == '3' else \
-             'touch' if action == '4' else \
-             'wheel' if action == '5' else \
-             'wheel_final' if action == '11' else \
-             'battery' if action == '6' else \
-             'not_found'
+    device_config = config.get('devices', config.get('buttons', {})).get(device_id)
+    if not device_config:
+        print("No device config found for {}".format(device_id))
+        return ''
 
-    button_config = config['buttons'].get(device_id)
-    if not button_config:
-        print("No button config found for {}".format(device_id))
-        return ""
-
-    action_config = button_config.get(action)
+    action_config = device_config.get(action)
     if not action_config:
         print("No config found for {}".format(action))
-        return ""
+        return ''
 
-    do_action(action_config, action, battery, device_id)
+    do_action(action_config, action, context)
 
-    return ""
+    return ''
 
 
 def handle_mqtt(_client, userdata, message):
-    parsed_payload = json.loads(message.payload.decode("UTF-8"))
+    parsed_payload = json.loads(message.payload.decode('UTF-8'))
     topic = message.topic
-    action = "default"
+    action = 'default'
 
     state[topic] = parsed_payload
 
-    button_config = config['topics'].get(topic)
-    if not button_config:
+    topics_config = config['topics'].get(topic)
+    if not topics_config:
         print("No topic config found for {}".format(topic))
         return
 
-    action_key = button_config.get("action_key", "action")
+    action_key = topics_config.get('action_key', 'action')
     if parsed_payload:
-        action = parsed_payload.get(action_key, "default")
+        action = parsed_payload.get(action_key, 'default')
 
-    action_config = button_config.get(action)
+    action_config = topics_config.get(action)
     if not action_config:
         print("No action config found for {}".format(action))
         return
 
-    do_action(action_config, action, topic, None)
+    context = _get_context_for_mqtt_message(message)
+
+    do_action(action_config, action, context)
 
 
-def do_action(action_config, action, device_id, battery):
+def do_action(action_config, action, context):
     actions = action_config.get('actions')
     if not actions:
         print("No actions found for {}".format(action))
@@ -93,31 +126,31 @@ def do_action(action_config, action, device_id, battery):
             state_id = 0
 
         next_state = actions[state_id]
-        do_request(next_state, battery, device_id)
+        do_request(next_state, context)
         action_config[state_key] = state_id
 
     if mode == FLOOD:
         for req in actions:
-            do_request(req, battery, device_id)
+            do_request(req, context)
 
     if mode in [CONDITION_ALL, CONDITION_FIRST]:
         for req in actions:
             do_it = True
             if 'condition' in req:
-                do_it = check_condition(req['condition'], battery, device_id)
+                do_it = check_condition(req['condition'], context)
             if do_it:
                 print("Performing request due to condition match")
-                do_request(req, battery, device_id)
+                do_request(req, context)
                 if mode == CONDITION_FIRST:
                     return
 
 
-def check_condition(condition, battery, device_id, carry_value=None):
+def check_condition(condition, context, carry_value=None):
     passes = True
     if not isinstance(condition, dict):
         return carry_value == condition
     if 'battery' in condition:
-        passes = passes and check_condition(condition['battery'], battery, device_id, battery)
+        passes = passes and check_condition(condition['battery'], context, carry_value=context['battery'])
     if 'time' in condition:
         now = datetime.datetime.now().time()
         time = condition['time']
@@ -129,20 +162,20 @@ def check_condition(condition, battery, device_id, carry_value=None):
             h, m = tuple(time['gt'].split(':'))
             passes = passes and (now.hour > int(h) or (now.hour == int(h) and now.minute > int(m)))
     if 'and' in condition:
-        passes = passes and all([check_condition(c, battery, device_id, carry_value) for c in condition['and']])
+        passes = passes and all([check_condition(c, context, carry_value) for c in condition['and']])
     if 'or' in condition:
-        passes = passes and any([check_condition(c, battery, device_id, carry_value) for c in condition['or']])
+        passes = passes and any([check_condition(c, context, carry_value) for c in condition['or']])
     if 'request' in condition:
         req = condition['request']
-        response = do_http(req, battery, device_id)
+        response = do_http(req, context)
         if 'response' in req:
             for response_condition in req['response']:
-                passes = passes and check_data_condition(response_condition, response.json(), battery, device_id)
+                passes = passes and check_data_condition(response_condition, response.json(), context)
         else:
             passes = passes and response.status_code // 100 == 2
     if 'state' in condition:
         condition = condition['state']
-        passes = passes and check_data_condition(condition, state.get(condition['topic'], {}), battery, device_id)
+        passes = passes and check_data_condition(condition, state.get(condition['topic'], {}), context)
     if 'lt' in condition:
         passes = passes and int(carry_value) < condition['lt']
     if 'gt' in condition:
@@ -150,7 +183,7 @@ def check_condition(condition, battery, device_id, carry_value=None):
     return passes
 
 
-def check_data_condition(condition, data, battery, device_id):
+def check_data_condition(condition, data, context):
     passes = True
     path = condition['path']
     path = path.split('.')
@@ -161,43 +194,41 @@ def check_data_condition(condition, data, battery, device_id):
         else:
             current_part = current_part[key]
     if 'value' in condition:
-        passes = passes and check_condition(condition['value'], battery, device_id, current_part)
+        passes = passes and check_condition(condition['value'], context, carry_value=current_part)
     return passes
 
 
-def do_request(req, battery, device_id):
+def do_request(req, context):
     if 'delay' in req:
         time.sleep(req['delay'])
     if 'endpoints' in req:
         for sub_req in req['endpoints']:
-            do_request(sub_req, battery, device_id)
+            do_request(sub_req, context)
     if 'url' in req:
-        do_http(req, battery, device_id)
+        do_http(req, context)
     if 'topic' in req:
-        if client is None:
+        if mqtt_client is None:
             return
-        do_mqtt(req, battery, device_id, client)
+        do_mqtt(req, context, mqtt_client)
 
 
-def do_http(req, battery, device_id):
+def do_http(req, context):
     url = req.get('url')
     if not url:
         print("No URL defined")
-        return ""
-    if '{battery}' in url or '{device}' in url:
-        url = url.format(battery=str(battery), device=str(device_id))
+        return ''
+    url = _apply_context_to_template(url, context)
 
     method = req.get('method') or 'get'
     headers = req.get('headers')
     data = req.get('payload')
     if data:
-        if '{battery}' in data or '{device}' in data:
-            data = data.format(battery=str(battery), device=str(device_id))
+        data = _apply_context_to_template(data, context)
 
     return requests.request(method, url, data=data, headers=headers)
 
 
-def do_mqtt(req, battery, device_id, _client):
+def do_mqtt(req, context, _client):
     topic = req.get('topic')
     if not topic:
         print("No topic defined")
@@ -205,10 +236,8 @@ def do_mqtt(req, battery, device_id, _client):
     payload = req.get('payload')
 
     if payload:
-        if '{battery}' in payload or '{device}' in payload:
-            payload = payload.format(battery=str(battery), device=str(device_id))
+        payload = _apply_context_to_template(payload, context)
 
-    print("publish")
     _client.publish(topic, payload)
 
 
@@ -221,17 +250,17 @@ if __name__ == '__main__':
         config = yaml.load(configfile)
 
     if 'broker' in config:
-        client = mqtt.Client("buttonhub")
+        mqtt_client = mqtt.Client('buttonhub')
         if 'userauth' in config['broker']:
-            client.username_pw_set(
+            mqtt_client.username_pw_set(
                 config['broker']['userauth']['user'],
-                password=config['broker']['userauth']['password']
+                password=config['broker']['userauth']['password'],
             )
-        client.on_message = handle_mqtt
-        client.connect(config['broker']['host'], config['broker']['port'])
-        client.subscribe(config['broker'].get('subscribe', '#'))
-        client.loop_start()
+        mqtt_client.on_message = handle_mqtt
+        mqtt_client.connect(config['broker']['host'], config['broker']['port'])
+        mqtt_client.subscribe(config['broker'].get('subscribe', '#'))
+        mqtt_client.loop_start()
     app.run(config['host'], config['port'])
 
     if 'broker' in config:
-        client.loop_stop()
+        mqtt_client.loop_stop()
