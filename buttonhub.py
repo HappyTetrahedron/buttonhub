@@ -12,7 +12,8 @@ from flask import Flask
 from flask import request
 
 app = Flask(__name__)
-state = {}
+app_state = {}
+device_status = {}
 mqtt_client = None
 
 config = None
@@ -49,6 +50,13 @@ def _get_context_for_device_request(device_id, request_args):
     }
 
 
+def _update_device_status(device_id, context):
+    device_status[device_id] = {
+        'last_seen': datetime.datetime.now().ctime(),
+        'battery': context.get('battery'),
+    }
+
+
 def _get_context_for_mqtt_message(message):
     return {
         'topic': message.topic,
@@ -68,6 +76,8 @@ def handle_request(device_id):
     action = _get_action(request.args)
     context = _get_context_for_device_request(device_id, request.args)
 
+    _update_device_status(device_id, context)
+
     device_config = config.get('devices', config.get('buttons', {})).get(device_id)
     if not device_config:
         print("No device config found for {}".format(device_id))
@@ -83,6 +93,14 @@ def handle_request(device_id):
     return ''
 
 
+@app.route('/status')
+def get_status():
+    return {
+        'state': app_state,
+        'devices': device_status,
+    }
+
+
 def handle_mqtt(_client, userdata, message):
     try:
         parsed_payload = json.loads(message.payload.decode('UTF-8'))
@@ -91,7 +109,7 @@ def handle_mqtt(_client, userdata, message):
     topic = message.topic
     action = 'default'
 
-    state[topic] = parsed_payload
+    app_state[topic] = parsed_payload
     topics_config = None
     if 'topics' in config:
         topics_config = config['topics'].get(topic)
@@ -178,7 +196,7 @@ def check_condition(condition, context, carry_value=None):
             passes = passes and response.status_code // 100 == 2
     if 'state' in condition:
         condition = condition['state']
-        passes = passes and check_data_condition(condition, state.get(condition['topic'], {}), context)
+        passes = passes and check_data_condition(condition, app_state.get(condition['topic'], {}), context)
     if 'lt' in condition:
         passes = passes and int(carry_value) < condition['lt']
     if 'gt' in condition:
