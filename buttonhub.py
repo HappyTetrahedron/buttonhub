@@ -96,7 +96,6 @@ def handle_request(device_id):
 @app.route('/status')
 def get_status():
     return {
-        'state': app_state,
         'devices': device_status,
     }
 
