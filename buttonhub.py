@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-
 import datetime
 import json
+import threading
 import time
 from optparse import OptionParser
 
@@ -15,6 +15,9 @@ app = Flask(__name__)
 app_state = {}
 device_status = {}
 mqtt_client = None
+scheduled_flows = []
+
+scheduler_events = threading.Event()
 
 config = None
 
@@ -97,6 +100,7 @@ def handle_request(device_id):
 def get_status():
     return {
         'devices': device_status,
+        'schedules': scheduled_flows,
     }
 
 
@@ -230,6 +234,12 @@ def do_request(req, context):
         if mqtt_client is None:
             return
         do_mqtt(req, context, mqtt_client)
+    if 'flow' in req:
+        do_flow(req, context)
+    if 'schedule-flow' in req:
+        schedule_flow(req, context)
+    if 'cancel-scheduled-flow' in req:
+        cancel_scheduled_flow(req, context)
 
 
 def do_http(req, context):
@@ -261,6 +271,80 @@ def do_mqtt(req, context, _client):
     _client.publish(topic, payload)
 
 
+def do_flow(req, context):
+    flow_name = req.get('flow', '')
+    flow = config.get('flows', {}).get(flow_name)
+    if not flow:
+        print("No Flow defined")
+        return ''
+    do_action(flow, flow_name, context)
+
+
+def schedule_flow(req, context):
+    global scheduled_flows
+    flow_name = req.get('schedule-flow', '')
+    schedule_time = None
+    if 'interval' in req:
+        timedelta = _parse_time_interval(req['interval'])
+        schedule_time = datetime.datetime.now() + timedelta
+    if not schedule_time:
+        return
+
+    scheduled_flows.append({
+        'name': flow_name,
+        'time': schedule_time,
+        'context': context,
+    })
+
+
+def _parse_time_interval(interval_string):
+    parts = interval_string.split(':')
+    hours = 0
+    minutes = 0
+    if len(parts) == 2:
+        hours = int(parts[0])
+        minutes = int(parts[1])
+    elif len(parts) == 1:
+        minutes = int(parts[0])
+    return datetime.timedelta(hours=hours, minutes=minutes)
+
+
+def cancel_scheduled_flow(req, context):
+    global scheduled_flows
+    flow_name = req.get('cancel-scheduled-flow', '')
+    scheduled_flows = [entry for entry in scheduled_flows if entry['name'] != flow_name]
+
+
+def run_scheduled_flows():
+    now = datetime.datetime.now()
+    due_flows = [flow for flow in scheduled_flows if flow['time'] < now]
+    context = _get_context_for_scheduled_flow()
+    for flow in due_flows:
+        flow_name = flow['name']
+        original_context = flow.get('context')
+        print('Running scheduled flow {} (context={})'.format(flow_name, original_context))
+        do_flow({
+            'flow': flow_name,
+        }, context)
+        scheduled_flows.remove(flow)
+
+
+def _get_context_for_scheduled_flow():
+    return {}
+
+
+def scheduler():
+    error_count = 0
+    while not scheduler_events.is_set() and error_count < 100:
+        try:
+            run_scheduled_flows()
+            scheduler_events.wait(60)
+        except Exception as e:
+            error_count = error_count + 1
+            print("Error in scheduling thread")
+            print(e)
+
+
 if __name__ == '__main__':
     parser = OptionParser()
     parser.add_option('-c', '--config', dest='config', default='config.yml', type='string',
@@ -268,6 +352,9 @@ if __name__ == '__main__':
     (opts, args) = parser.parse_args()
     with open(opts.config, 'r') as configfile:
         config = yaml.load(configfile)
+
+    scheduler_thread = threading.Thread(target=scheduler)
+    scheduler_thread.start()
 
     if 'broker' in config:
         mqtt_client = mqtt.Client('buttonhub')
@@ -282,5 +369,6 @@ if __name__ == '__main__':
         mqtt_client.loop_start()
     app.run(config['host'], config['port'])
 
+    scheduler_events.set()
     if 'broker' in config:
         mqtt_client.loop_stop()
