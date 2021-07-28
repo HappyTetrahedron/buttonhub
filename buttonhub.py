@@ -316,6 +316,7 @@ def cancel_scheduled_flow(req, context):
 
 
 def run_scheduled_flows():
+    global scheduled_flows
     now = datetime.datetime.now()
     due_flows = [flow for flow in scheduled_flows if flow['time'] < now]
     context = _get_context_for_scheduled_flow()
@@ -326,7 +327,7 @@ def run_scheduled_flows():
         do_flow({
             'flow': flow_name,
         }, context)
-        scheduled_flows.remove(flow)
+    scheduled_flows = [flow for flow in scheduled_flows if flow['time'] < now]
 
 
 def _get_context_for_scheduled_flow():
@@ -339,9 +340,10 @@ def scheduler():
         try:
             run_scheduled_flows()
             scheduler_events.wait(60)
+            error_count = 0
         except Exception as e:
             error_count = error_count + 1
-            print("Error in scheduling thread")
+            print("Error in scheduling thread (#{})".format(error_count))
             print(e)
 
 
