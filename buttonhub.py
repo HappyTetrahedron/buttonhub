@@ -290,6 +290,8 @@ def schedule_flow(req, context):
     if not schedule_time:
         return
 
+    print("Scheduling flow '{}' to run at {}".format(flow_name, schedule_time))
+
     scheduled_flows.append({
         'name': flow_name,
         'time': schedule_time,
@@ -312,6 +314,7 @@ def _parse_time_interval(interval_string):
 def cancel_scheduled_flow(req, context):
     global scheduled_flows
     flow_name = req.get('cancel-scheduled-flow', '')
+    print("Cancelling scheduled flow '{}'".format(flow_name))
     scheduled_flows = [entry for entry in scheduled_flows if entry['name'] != flow_name]
 
 
