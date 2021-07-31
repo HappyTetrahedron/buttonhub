@@ -330,7 +330,8 @@ def run_scheduled_flows():
         do_flow({
             'flow': flow_name,
         }, context)
-    scheduled_flows = [flow for flow in scheduled_flows if flow['time'] < now]
+    if due_flows:
+        scheduled_flows = [flow for flow in scheduled_flows if flow['time'] >= now]
 
 
 def _get_context_for_scheduled_flow():
