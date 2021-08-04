@@ -119,6 +119,7 @@ def handle_mqtt(_client, userdata, message):
     if 'topics' in config:
         topics_config = config['topics'].get(topic)
     if not topics_config:
+        print("No config for topic {}".format(topic))
         return
 
     action_key = topics_config.get('action_key', 'action')
@@ -128,7 +129,7 @@ def handle_mqtt(_client, userdata, message):
     action_config = topics_config.get(action)
     if not action_config:
         print("No action config found for {}".format(action))
-        print(action_config)
+        print(topics_config)
         return
 
     context = _get_context_for_mqtt_message(message)
