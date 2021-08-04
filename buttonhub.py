@@ -59,7 +59,7 @@ def _get_context_for_device_request(device_id, request_args):
 
 def _update_device_status(device_id, context):
     device_status[device_id] = {
-        'last_seen': datetime.datetime.now().ctime(),
+        'last_seen': datetime.datetime.now(),
         'battery': context.get('battery'),
     }
 
@@ -246,6 +246,8 @@ def do_request(req, context):
         schedule_flow(req, context)
     if 'cancel-scheduled-flow' in req:
         cancel_scheduled_flow(req, context)
+    if 'set-state' in req:
+        do_set_state(req, context)
 
 
 def do_http(req, context):
@@ -338,6 +340,13 @@ def run_scheduled_flows():
         }, context)
     if due_flows:
         scheduled_flows = [flow for flow in scheduled_flows if flow['time'] >= now]
+
+
+def do_set_state(req, context):
+    key = req.get('state_key')
+    value = req.get('state_value')
+    app_state[key] = value
+    log("Set state for {} to {}".format(key, value))
 
 
 def _get_context_for_scheduled_flow():
