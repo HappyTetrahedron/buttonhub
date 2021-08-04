@@ -112,6 +112,8 @@ def handle_mqtt(_client, userdata, message):
     topic = message.topic
     action = 'default'
 
+    print("Received MQTT message on topic {}: {}".format(topic, parsed_payload))
+
     app_state[topic] = parsed_payload
     topics_config = None
     if 'topics' in config:
