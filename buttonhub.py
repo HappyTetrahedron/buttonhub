@@ -42,6 +42,10 @@ ACTIONS = {
 }
 
 
+def log(message):
+    print(message, flush=True)
+
+
 def _get_action(request_args):
     return ACTIONS.get(request_args.get('action'), 'not_found')
 
@@ -83,12 +87,12 @@ def handle_request(device_id):
 
     device_config = config.get('devices', config.get('buttons', {})).get(device_id)
     if not device_config:
-        print("No device config found for {}".format(device_id))
+        log("No device config found for {}".format(device_id))
         return ''
 
     action_config = device_config.get(action)
     if not action_config:
-        print("No config found for {}".format(action))
+        log("No config found for {}".format(action))
         return ''
 
     do_action(action_config, action, context)
@@ -112,14 +116,11 @@ def handle_mqtt(_client, userdata, message):
     topic = message.topic
     action = 'default'
 
-    print("Received MQTT message on topic {}: {}".format(topic, parsed_payload))
-
     app_state[topic] = parsed_payload
     topics_config = None
     if 'topics' in config:
         topics_config = config['topics'].get(topic)
     if not topics_config:
-        print("No config for topic {}".format(topic))
         return
 
     action_key = topics_config.get('action_key', 'action')
@@ -128,20 +129,18 @@ def handle_mqtt(_client, userdata, message):
 
     action_config = topics_config.get(action)
     if not action_config:
-        print("No action config found for {}".format(action))
-        print(topics_config)
+        log("No action config found for {}".format(action))
         return
 
     context = _get_context_for_mqtt_message(message)
 
     do_action(action_config, action, context)
-    print("Done performing action for MQTT message on topic {}".format(topic))
 
 
 def do_action(action_config, action, context):
     actions = action_config.get('actions')
     if not actions:
-        print("No actions found for {}".format(action))
+        log("No actions found for {}".format(action))
         return
 
     mode = action_config.get('mode') or FLOOD
@@ -168,7 +167,7 @@ def do_action(action_config, action, context):
             if 'condition' in req:
                 do_it = check_condition(req['condition'], context)
             if do_it:
-                print("Performing request due to condition match")
+                log("Performing request due to condition match")
                 do_request(req, context)
                 if mode == CONDITION_FIRST:
                     return
@@ -250,7 +249,7 @@ def do_request(req, context):
 def do_http(req, context):
     url = req.get('url')
     if not url:
-        print("No URL defined")
+        log("No URL defined")
         return ''
     url = _apply_context_to_template(url, context)
 
@@ -266,7 +265,7 @@ def do_http(req, context):
 def do_mqtt(req, context, _client):
     topic = req.get('topic')
     if not topic:
-        print("No topic defined")
+        log("No topic defined")
         return
     payload = req.get('payload')
 
@@ -280,7 +279,7 @@ def do_flow(req, context):
     flow_name = req.get('flow', '')
     flow = config.get('flows', {}).get(flow_name)
     if not flow:
-        print("No Flow defined")
+        log("No Flow defined")
         return ''
     do_action(flow, flow_name, context)
 
@@ -295,7 +294,7 @@ def schedule_flow(req, context):
     if not schedule_time:
         return
 
-    print("Scheduling flow '{}' to run at {}".format(flow_name, schedule_time))
+    log("Scheduling flow '{}' to run at {}".format(flow_name, schedule_time))
 
     scheduled_flows.append({
         'name': flow_name,
@@ -319,7 +318,7 @@ def _parse_time_interval(interval_string):
 def cancel_scheduled_flow(req, context):
     global scheduled_flows
     flow_name = req.get('cancel-scheduled-flow', '')
-    print("Cancelling scheduled flow '{}'".format(flow_name))
+    log("Cancelling scheduled flow '{}'".format(flow_name))
     scheduled_flows = [entry for entry in scheduled_flows if entry['name'] != flow_name]
 
 
@@ -331,7 +330,7 @@ def run_scheduled_flows():
     for flow in due_flows:
         flow_name = flow['name']
         original_context = flow.get('context')
-        print('Running scheduled flow {} (context={})'.format(flow_name, original_context))
+        log('Running scheduled flow {} (context={})'.format(flow_name, original_context))
         do_flow({
             'flow': flow_name,
         }, context)
@@ -352,13 +351,13 @@ def scheduler():
             error_count = 0
         except Exception as e:
             error_count = error_count + 1
-            print("Error in scheduling thread (#{})".format(error_count))
-            print(e)
+            log("Error in scheduling thread (#{})".format(error_count))
+            log(e)
 
 
 def _on_mqtt_log_message(client, userdata, level, buf):
     if level == mqtt.MQTT_LOG_ERR:
-        print("MQTT error: {}".format(buf))
+        log("MQTT error: {}".format(buf))
 
 
 if __name__ == '__main__':
