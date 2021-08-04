@@ -355,6 +355,11 @@ def scheduler():
             print(e)
 
 
+def _on_mqtt_log_message(client, userdata, level, buf):
+    if level == mqtt.MQTT_LOG_ERR:
+        print("MQTT error: {}".format(buf))
+
+
 if __name__ == '__main__':
     parser = OptionParser()
     parser.add_option('-c', '--config', dest='config', default='config.yml', type='string',
@@ -373,7 +378,7 @@ if __name__ == '__main__':
                 config['broker']['userauth']['user'],
                 password=config['broker']['userauth']['password'],
             )
-        mqtt_client.loop_start()
+        mqtt_client.on_log = _on_mqtt_log_message
         mqtt_client.on_message = handle_mqtt
         mqtt_client.connect(config['broker']['host'], config['broker']['port'])
         mqtt_client.subscribe(config['broker'].get('subscribe', '#'))
