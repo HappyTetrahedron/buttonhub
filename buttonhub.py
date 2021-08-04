@@ -128,11 +128,13 @@ def handle_mqtt(_client, userdata, message):
     action_config = topics_config.get(action)
     if not action_config:
         print("No action config found for {}".format(action))
+        print(action_config)
         return
 
     context = _get_context_for_mqtt_message(message)
 
     do_action(action_config, action, context)
+    print("Done performing action for MQTT message on topic {}".format(topic))
 
 
 def do_action(action_config, action, context):
@@ -371,6 +373,7 @@ if __name__ == '__main__':
                 config['broker']['userauth']['user'],
                 password=config['broker']['userauth']['password'],
             )
+        mqtt_client.loop_start()
         mqtt_client.on_message = handle_mqtt
         mqtt_client.connect(config['broker']['host'], config['broker']['port'])
         mqtt_client.subscribe(config['broker'].get('subscribe', '#'))
