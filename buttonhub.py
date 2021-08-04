@@ -132,6 +132,8 @@ def handle_mqtt(_client, userdata, message):
         log("No action config found for {}".format(action))
         return
 
+    log("Handling topic {} with action {}".format(topic, action))
+
     context = _get_context_for_mqtt_message(message)
 
     do_action(action_config, action, context)
