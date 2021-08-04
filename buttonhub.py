@@ -343,8 +343,8 @@ def run_scheduled_flows():
 
 
 def do_set_state(req, context):
-    key = req.get('state_key')
-    value = req.get('state_value')
+    key = req.get('set-state')
+    value = req.get('new-state')
     app_state[key] = value
     log("Set state for {} to {}".format(key, value))
 
