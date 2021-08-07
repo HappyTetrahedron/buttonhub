@@ -111,7 +111,9 @@ def get_status():
 @app.route('/flows')
 def get_flows():
     flows = config.get('flows', {})
-    return list(flows.keys())
+    return {
+        'flows': list(flows.keys()),
+    }
 
 
 @app.route('/flows/<flow_name>', methods=['POST'])
