@@ -108,6 +108,18 @@ def get_status():
     }
 
 
+@app.route('/flows')
+def get_flows():
+    flows = config.get('flows', {})
+    return list(flows.keys())
+
+
+@app.route('/flows/<flow_name>', methods=['POST'])
+def run_flow(flow_name):
+    do_flow(flow_name, context={})
+    return ''
+
+
 def handle_mqtt(_client, userdata, message):
     try:
         parsed_payload = json.loads(message.payload.decode('UTF-8'))
@@ -243,7 +255,8 @@ def do_request(req, context):
             return
         do_mqtt(req, context, mqtt_client)
     if 'flow' in req:
-        do_flow(req, context)
+        flow_name = req.get('flow', '')
+        do_flow(flow_name, context)
     if 'schedule-flow' in req:
         schedule_flow(req, context)
     if 'cancel-scheduled-flow' in req:
@@ -281,8 +294,7 @@ def do_mqtt(req, context, _client):
     _client.publish(topic, payload)
 
 
-def do_flow(req, context):
-    flow_name = req.get('flow', '')
+def do_flow(flow_name, context):
     flow = config.get('flows', {}).get(flow_name)
     if not flow:
         log("No Flow defined for '{}'".format(flow_name))
@@ -332,14 +344,11 @@ def run_scheduled_flows():
     global scheduled_flows
     now = datetime.datetime.now()
     due_flows = [flow for flow in scheduled_flows if flow['time'] < now]
-    context = _get_context_for_scheduled_flow()
     for flow in due_flows:
         flow_name = flow['name']
         original_context = flow.get('context')
         log('Running scheduled flow {} (context={})'.format(flow_name, original_context))
-        do_flow({
-            'flow': flow_name,
-        }, context)
+        do_flow(flow_name, context={})
     if due_flows:
         scheduled_flows = [flow for flow in scheduled_flows if flow['time'] >= now]
 
@@ -349,10 +358,6 @@ def do_set_state(req, context):
     value = req.get('new-state')
     app_state[key] = value
     log("Set state for {} to {}".format(key, value))
-
-
-def _get_context_for_scheduled_flow():
-    return {}
 
 
 def scheduler():
