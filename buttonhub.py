@@ -195,6 +195,8 @@ def check_condition(condition, context, carry_value=None):
         passes = passes and all([check_condition(c, context, carry_value) for c in condition['and']])
     if 'or' in condition:
         passes = passes and any([check_condition(c, context, carry_value) for c in condition['or']])
+    if 'not' in condition:
+        passes = passes and not check_condition(condition['not'], context, carry_value)
     if 'request' in condition:
         req = condition['request']
         response = do_http(req, context)
