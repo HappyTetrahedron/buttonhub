@@ -285,7 +285,7 @@ def do_flow(req, context):
     flow_name = req.get('flow', '')
     flow = config.get('flows', {}).get(flow_name)
     if not flow:
-        log("No Flow defined")
+        log("No Flow defined for '{}'".format(flow_name))
         return ''
     do_action(flow, flow_name, context)
 
