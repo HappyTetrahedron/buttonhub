@@ -85,7 +85,7 @@ def handle_request(device_id):
 
     _update_device_status(device_id, context)
 
-    device_config = config.get('devices', config.get('buttons', {})).get(device_id)
+    device_config = config.get('devices', {}).get(device_id)
     if not device_config:
         log("No device config found for {}".format(device_id))
         return ''
@@ -233,8 +233,8 @@ def check_data_condition(condition, data, context):
 def do_request(req, context):
     if 'delay' in req:
         time.sleep(req['delay'])
-    if 'endpoints' in req:
-        for sub_req in req['endpoints']:
+    if 'group' in req:
+        for sub_req in req['group']:
             do_request(sub_req, context)
     if 'url' in req:
         do_http(req, context)
