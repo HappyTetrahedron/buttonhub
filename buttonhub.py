@@ -64,9 +64,10 @@ def _update_device_status(device_id, context):
     }
 
 
-def _get_context_for_mqtt_message(message):
+def _get_context_for_mqtt_message(topic, payload):
     return {
-        'topic': message.topic,
+        'topic': topic,
+        'battery': payload.get('battery'),
     }
 
 
@@ -148,7 +149,7 @@ def handle_mqtt(_client, userdata, message):
 
     log("Handling topic {} with action {}".format(topic, action))
 
-    context = _get_context_for_mqtt_message(message)
+    context = _get_context_for_mqtt_message(topic, parsed_payload)
 
     do_action(action_config, action, context)
 
