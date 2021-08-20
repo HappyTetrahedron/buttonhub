@@ -140,7 +140,9 @@ def handle_mqtt(_client, userdata, message):
 
     action_key = topics_config.get('action_key', 'action')
     if parsed_payload:
-        action = parsed_payload.get(action_key, 'default').lower()
+        action = parsed_payload.get(action_key, 'default')
+        if isinstance(action, str):
+            action = action.lower()
 
     action_config = topics_config.get(action)
     if not action_config:
