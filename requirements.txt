@@ -2,3 +2,4 @@ pyyaml
 flask
 requests
 paho-mqtt
+astral

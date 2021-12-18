@@ -4,6 +4,9 @@ import json
 import threading
 import time
 from optparse import OptionParser
+from astral import geocoder
+from astral import sun as astral_sun
+import pytz
 
 import paho.mqtt.client as mqtt
 import requests
@@ -20,6 +23,8 @@ scheduled_flows = []
 scheduler_events = threading.Event()
 
 config = None
+city = geocoder.lookup('Bern', geocoder.database())
+timezone = pytz.timezone('Europe/Zurich')
 
 CAROUSEL = 'carousel'
 FLOOD = 'flood'
@@ -203,11 +208,11 @@ def check_condition(condition, context, carry_value=None):
         time = condition['time']
         # handle gt and lt separately for time as it is a special data type
         if 'lt' in time:
-            h, m = tuple(time['lt'].split(':'))
-            passes = passes and (now.hour < int(h) or (now.hour == int(h) and now.minute < int(m)))
+            h, m = parse_time(time['lt'])
+            passes = passes and (now.hour < h or (now.hour == h and now.minute < m))
         if 'gt' in time:
-            h, m = tuple(time['gt'].split(':'))
-            passes = passes and (now.hour > int(h) or (now.hour == int(h) and now.minute > int(m)))
+            h, m = parse_time(time['gt'])
+            passes = passes and (now.hour > h or (now.hour == h and now.minute > m))
     if 'and' in condition:
         passes = passes and all([check_condition(c, context, carry_value) for c in condition['and']])
     if 'or' in condition:
@@ -230,6 +235,36 @@ def check_condition(condition, context, carry_value=None):
     if 'gt' in condition:
         passes = passes and int(carry_value) > condition['gt']
     return passes
+
+
+def parse_time(time_string):
+    if ':' in time_string:
+        parts = time_string.split(':')
+        return int(parts[0]), int(parts[1])
+    if time_string.startswith('sunrise'):
+        base_time = get_astral_time('sunrise')
+        time_string = time_string[7:]
+    elif time_string.startswith('sunset'):
+        base_time = get_astral_time('sunset')
+        time_string = time_string[6:]
+    else:
+        raise 'Invalid time {}'.format(time_string)
+    parsed_time = base_time + parse_time_offset(time_string)
+    return parsed_time.hour, parsed_time.minute
+
+
+def get_astral_time(key):
+    return astral_sun.sun(city.observer, date=datetime.datetime.now())[key] \
+        .replace(tzinfo=pytz.utc) \
+        .astimezone(timezone)
+
+
+def parse_time_offset(time_offset_string):
+    if time_offset_string == '':
+        offset = 0
+    else:
+        offset = int(time_offset_string)
+    return datetime.timedelta(minutes=offset)
 
 
 def check_data_condition(condition, data, context):
@@ -385,11 +420,21 @@ def _on_mqtt_log_message(client, userdata, level, buf):
 
 if __name__ == '__main__':
     parser = OptionParser()
-    parser.add_option('-c', '--config', dest='config', default='config.yml', type='string',
-                      help="Path of configuration file")
+    parser.add_option(
+        '-c',
+        '--config',
+        dest='config',
+        default='config.yml',
+        type='string',
+        help="Path of configuration file",
+    )
     (opts, args) = parser.parse_args()
     with open(opts.config, 'r') as configfile:
         config = yaml.load(configfile)
+        if 'location' in config:
+            city = geocoder.lookup(config['location'], geocoder.database())
+        if 'timezone' in config:
+            timezone = pytz.timezone(config['timezone'])
 
     scheduler_thread = threading.Thread(target=scheduler)
     scheduler_thread.start()
