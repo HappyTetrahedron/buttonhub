@@ -430,7 +430,7 @@ if __name__ == '__main__':
     )
     (opts, args) = parser.parse_args()
     with open(opts.config, 'r') as configfile:
-        config = yaml.load(configfile)
+        config = yaml.load(configfile, loader=yaml.Loader)
         if 'location' in config:
             city = geocoder.lookup(config['location'], geocoder.database())
         if 'timezone' in config:
