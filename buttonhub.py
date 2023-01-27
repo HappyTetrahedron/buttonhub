@@ -118,7 +118,15 @@ def get_status():
 def get_flows():
     flows = config.get('flows', {})
     return {
-        'flows': list(flows.keys()),
+        'flows': [
+            {
+                'name': flow_name,
+                'label': flows[flow_name].get('label') or flow_name,
+                'group': flows[flow_name].get('group') or 'default',
+                'hidden': flows[flow_name].get('hidden') or False,
+            }
+            for flow_name in flows
+        ],
     }
 
 
