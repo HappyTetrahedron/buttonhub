@@ -297,7 +297,11 @@ def do_request(req, context):
         for sub_req in req['group']:
             do_request(sub_req, context)
     if 'url' in req:
-        do_http(req, context)
+        try:
+            do_http(req, context)
+        except e:
+            log("Failed to perform HTTP request to {}".format(req.get('url')))
+            log(e)
     if 'topic' in req:
         if mqtt_client is None:
             return
