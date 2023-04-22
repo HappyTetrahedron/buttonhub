@@ -299,7 +299,7 @@ def do_request(req, context):
     if 'url' in req:
         try:
             do_http(req, context)
-        except e:
+        except Exception as e:
             log("Failed to perform HTTP request to {}".format(req.get('url')))
             log(e)
     if 'topic' in req:
