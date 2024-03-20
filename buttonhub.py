@@ -149,6 +149,8 @@ def handle_mqtt(_client, userdata, message):
     topic = message.topic
     action = 'default'
 
+    previous_topic_state = app_state.get(topic)
+    app_state[topic] = parsed_payload
     topics_config = None
     if 'topics' in config:
         topics_config = config['topics'].get(topic)
@@ -167,7 +169,7 @@ def handle_mqtt(_client, userdata, message):
         return
 
     skip_action = False
-    if action_key == 'state' and parsed_payload and (app_state.get(topic) or {}).get('state') == parsed_payload.get('state'):
+    if action_key == 'state' and parsed_payload and (previous_topic_state or {}).get('state') == parsed_payload.get('state'):
         skip_action = True
 
     app_state[topic] = parsed_payload
