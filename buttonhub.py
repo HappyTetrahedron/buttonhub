@@ -142,6 +142,8 @@ def run_flow(flow_name):
 
 
 def handle_mqtt(_client, userdata, message):
+    if message.topic.startswith('zigbee2mqtt/bridge/'):
+        return
     try:
         parsed_payload = json.loads(message.payload.decode('UTF-8'))
     except json.decoder.JSONDecodeError:
