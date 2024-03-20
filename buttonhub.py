@@ -144,7 +144,6 @@ def handle_mqtt(_client, userdata, message):
     topic = message.topic
     action = 'default'
 
-    app_state[topic] = parsed_payload
     topics_config = None
     if 'topics' in config:
         topics_config = config['topics'].get(topic)
@@ -160,6 +159,16 @@ def handle_mqtt(_client, userdata, message):
     action_config = topics_config.get(action)
     if not action_config:
         log("No action config found for topic {} with action {}".format(topic, action))
+        return
+
+    skip_action = False
+    if action_key == 'state' and parsed_payload and (app_state.get(topic) or {}).get('state') == parsed_payload.get('state'):
+        skip_action = True
+
+    app_state[topic] = parsed_payload
+
+    if skip_action:
+        log("Skipping topic {} with action {}, state has not changed".format(topic, action))
         return
 
     log("Handling topic {} with action {}".format(topic, action))
