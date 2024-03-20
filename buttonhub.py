@@ -159,7 +159,7 @@ def handle_mqtt(_client, userdata, message):
 
     action_config = topics_config.get(action)
     if not action_config:
-        log("No action config found for {}".format(action))
+        log("No action config found for topic {} with action {}".format(topic, action))
         return
 
     log("Handling topic {} with action {}".format(topic, action))
