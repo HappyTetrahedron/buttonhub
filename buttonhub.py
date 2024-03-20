@@ -114,6 +114,11 @@ def get_status():
     }
 
 
+@app.route('/state')
+def get_state():
+    return app_state
+
+
 @app.route('/flows')
 def get_flows():
     flows = config.get('flows', {})
