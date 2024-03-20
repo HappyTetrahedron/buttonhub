@@ -145,7 +145,8 @@ def handle_mqtt(_client, userdata, message):
     try:
         parsed_payload = json.loads(message.payload.decode('UTF-8'))
     except json.decoder.JSONDecodeError:
-        parsed_payload = message.payload
+        log("Unexpected payload for topic {}: {}".format(message.topic, message.payload))
+        return
     topic = message.topic
     action = 'default'
 
