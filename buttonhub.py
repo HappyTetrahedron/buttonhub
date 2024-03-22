@@ -169,8 +169,9 @@ def handle_mqtt(_client, userdata, message):
             action = action.lower()
 
     action_config = topics_config.get(action)
-    if not action_config and action != 'default':
-        log("No action config found for topic {} with action {}".format(topic, action))
+    if not action_config:
+        if action != 'default':
+            log("No action config found for topic {} with action {}".format(topic, action))
         return
 
     skip_action = False
