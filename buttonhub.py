@@ -7,6 +7,7 @@ from optparse import OptionParser
 from astral import geocoder
 from astral import sun as astral_sun
 import pytz
+import re
 
 import paho.mqtt.client as mqtt
 import requests
@@ -25,6 +26,7 @@ scheduler_events = threading.Event()
 config = None
 city = geocoder.lookup('Bern', geocoder.database())
 timezone = pytz.timezone('Europe/Zurich')
+ignore_topics_regex = None
 
 CAROUSEL = 'carousel'
 FLOOD = 'flood'
@@ -142,18 +144,18 @@ def run_flow(flow_name):
 
 
 def handle_mqtt(_client, userdata, message):
-    if message.topic.startswith('zigbee2mqtt/bridge/'):
-        return
+    topic = message.topic
+
     try:
         parsed_payload = json.loads(message.payload.decode('UTF-8'))
     except json.decoder.JSONDecodeError:
         log("Unexpected payload for topic {}: {}".format(message.topic, message.payload))
         return
-    topic = message.topic
     action = 'default'
 
     previous_topic_state = app_state.get(topic)
-    app_state[topic] = parsed_payload
+    if not ignore_topics_regex or not re.search(ignore_topics_regex, topic):
+        app_state[topic] = parsed_payload
     topics_config = None
     if 'topics' in config:
         topics_config = config['topics'].get(topic)
@@ -167,15 +169,13 @@ def handle_mqtt(_client, userdata, message):
             action = action.lower()
 
     action_config = topics_config.get(action)
-    if not action_config:
+    if not action_config and action != 'default':
         log("No action config found for topic {} with action {}".format(topic, action))
         return
 
     skip_action = False
     if action_key == 'state' and parsed_payload and (previous_topic_state or {}).get('state') == parsed_payload.get('state'):
         skip_action = True
-
-    app_state[topic] = parsed_payload
 
     if skip_action:
         log("Skipping topic {} with action {}, state has not changed".format(topic, action))
@@ -466,6 +466,8 @@ if __name__ == '__main__':
             city = geocoder.lookup(config['location'], geocoder.database())
         if 'timezone' in config:
             timezone = pytz.timezone(config['timezone'])
+        if 'ignore-topics' in config:
+            ignore_topics_regex = config['ignore-topics']
 
     scheduler_thread = threading.Thread(target=scheduler)
     scheduler_thread.start()
