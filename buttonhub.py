@@ -155,6 +155,7 @@ def handle_mqtt(_client, userdata, message):
 
     previous_topic_state = app_state.get(topic)
     if not ignore_topics_regex or not re.search(ignore_topics_regex, topic):
+        parsed_payload['last_seen'] = datetime.datetime.now()
         app_state[topic] = parsed_payload
     topics_config = None
     if 'topics' in config:
