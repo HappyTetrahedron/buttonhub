@@ -175,12 +175,8 @@ def handle_mqtt(_client, userdata, message):
             log("No action config found for topic {} with action {}".format(topic, action))
         return
 
-    skip_action = False
-    if action != 'default' and parsed_payload and (previous_topic_state or {}).get(action_key) == parsed_payload.get(action_key):
-        skip_action = True
-
-    if skip_action:
-        log("Skipping topic {} with action {}={}, state has not changed".format(topic, action_key, action))
+    if topics_config.get('ignore_repetition') and parsed_payload and (previous_topic_state or {}).get(action_key) == parsed_payload.get(action_key):
+        log("Skipping topic {} with action {}={}, ignoring repetition".format(topic, action_key, action))
         return
 
     log("Handling topic {} with action {}={}".format(topic, action_key, action))
