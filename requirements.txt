@@ -2,5 +2,5 @@ pyyaml
 flask
 requests
 paho-mqtt
-astral
+astral==3.2
 pytz
