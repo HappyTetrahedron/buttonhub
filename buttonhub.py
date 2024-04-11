@@ -61,6 +61,7 @@ def _get_context_for_device_request(device_id, request_args):
     return {
         'device_id': device_id,
         'battery': request_args.get('battery'),
+        'time': datetime.datetime.now(),
     }
 
 
@@ -75,6 +76,7 @@ def _get_context_for_mqtt_message(topic, payload):
     return {
         'topic': topic,
         'battery': payload.get('battery'),
+        'time': datetime.datetime.now(),
     }
 
 
@@ -139,7 +141,11 @@ def get_flows():
 
 @app.route('/flows/<flow_name>', methods=['POST'])
 def run_flow(flow_name):
-    do_flow(flow_name, context={})
+    do_flow(flow_name, context={
+        'agent': request.headers.get('User-Agent'),
+        'flow': flow_name,
+        'time': datetime.datetime.now(),
+    })
     return ''
 
 
@@ -425,6 +431,7 @@ def run_scheduled_flows():
 def do_set_state(req, context):
     key = req.get('set-state')
     value = req.get('new-state')
+    value['context'] = context
     app_state[key] = value
     log("Set state for {} to {}".format(key, value))
 
