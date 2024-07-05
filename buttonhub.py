@@ -22,6 +22,7 @@ mqtt_client = None
 scheduled_flows = []
 
 scheduler_events = threading.Event()
+scheduler_event = threading.Event()
 
 config = None
 city = geocoder.lookup('Bern', geocoder.database())
@@ -394,6 +395,7 @@ def schedule_flow(req, context):
         'time': schedule_time,
         'context': context,
     })
+    scheduler_event.set()
 
 
 def _parse_time_interval(interval_string):
@@ -440,8 +442,9 @@ def scheduler():
     error_count = 0
     while not scheduler_events.is_set() and error_count < 100:
         try:
+            scheduler_event.clear()
             run_scheduled_flows()
-            scheduler_events.wait(60)
+            scheduler_event.wait(60)
             error_count = 0
         except Exception as e:
             error_count = error_count + 1
@@ -492,5 +495,6 @@ if __name__ == '__main__':
     app.run(config['host'], config['port'])
 
     scheduler_events.set()
+    scheduler_event.set()
     if 'broker' in config:
         mqtt_client.loop_stop()
