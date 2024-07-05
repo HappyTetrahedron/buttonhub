@@ -481,7 +481,7 @@ if __name__ == '__main__':
     scheduler_thread.start()
 
     if 'broker' in config:
-        mqtt_client = mqtt.Client('buttonhub')
+        mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, 'buttonhub')
         if 'userauth' in config['broker']:
             mqtt_client.username_pw_set(
                 config['broker']['userauth']['user'],
