@@ -87,10 +87,17 @@ def _get_context_for_mqtt_message(topic, payload):
 
 
 def _apply_context_to_template(template, context):
-    for key in context:
-        placeholder = '{{{key}}}'.format(key=key)
-        if placeholder in template:
-            template = template.replace(placeholder, str(context[key]))
+    if isinstance(template, dict):
+        new = {}
+        for k, v in template.items():
+            new[k] = _apply_context_to_template(v, context)
+        return new
+
+    if isinstance(template, str):
+        for key in context:
+            placeholder = '{{{key}}}'.format(key=key)
+            if placeholder in template:
+                template = template.replace(placeholder, str(context[key]))
     return template
 
 
@@ -489,6 +496,7 @@ def run_scheduled_flows():
 def do_set_state(req, context):
     key = req.get('set-state')
     value = req.get('new-state')
+    value = _apply_context_to_template(value, context)
     value['context'] = context
     app_state[key] = value
     log("Set state for {} to {}".format(key, value))
@@ -552,7 +560,7 @@ if __name__ == '__main__':
     startup_flow = config.get('flows', {}).get(STARTUP_FLOW_NAME, None)
     if startup_flow:
         log("Running startup flow")
-        do_flow(STARTUP_FLOW_NAME, {})
+        do_flow(STARTUP_FLOW_NAME, {'startup': True, 'time': datetime.datetime.now()})
     app.run(config['host'], config['port'])
 
     scheduler_events.set()
