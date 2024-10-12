@@ -34,6 +34,11 @@ FLOOD = 'flood'
 CONDITION_ALL = 'condition_all'
 CONDITION_FIRST = 'condition_first'
 
+STARTUP_FLOW_NAME = 'startup'
+
+METRIC_PREFIX = "buttonhub"
+VALID_METRIC_TYPES = ['gauge', 'counter']
+
 ACTIONS = {
     '1': 'single',
     '2': 'double',
@@ -123,6 +128,57 @@ def get_status():
 def get_state():
     return app_state
 
+@app.route('/metrics')
+def get_metrics():
+    prom_metrics = {}
+    metric_text = ""
+    for metric in config.get("metrics", []):
+        m_name = "{}_{}".format(METRIC_PREFIX, metric['name'])
+        m_help = metric.get('help', "A buttonhub metric.")
+        m_type = metric.get('type', 'gauge')
+        if m_type not in VALID_METRIC_TYPES:
+            m_type = 'gauge'
+        metric_text += "# HELP {} {}\n".format(m_name, m_help)
+        metric_text += "# TYPE {} {}\n".format(m_name, m_type)
+
+        m_default_path = metric.get('path', None)
+
+        for ts in metric.get("measurements", []):
+
+            s = app_state[ts['topic']]
+            v = get_value_by_path(s, ts.get('path', m_default_path))
+            v = make_metric_value(v)
+            if not v:
+                continue
+            if ts.get('labels', None):
+                metric_text += ("{}{{{}}} {}\n".format(
+                    m_name,
+                    ','.join(['"{}"="{}"'.format(l, v) for l, v in ts['labels'].items()]),
+                    v
+                ))
+            else:
+                metric_text += ("{} {}\n".format(
+                    m_name,
+                    v
+                ))
+
+    return metric_text
+
+def make_metric_name(topic, path):
+    t = topic.split('/')
+    p = path.split('.')
+    return "{}_{}".format("_".join(t), "_".join(p))
+
+def make_metric_value(raw):
+    if raw == 'ON' or raw == 'true':
+        return '1'
+    if raw == 'OFF' or raw == 'false':
+        return '0'
+    try:
+        float(raw)
+        return raw
+    except:
+        return '-1'
 
 @app.route('/flows')
 def get_flows():
@@ -300,19 +356,19 @@ def parse_time_offset(time_offset_string):
 
 
 def check_data_condition(condition, data, context):
-    passes = True
-    path = condition['path']
+    v = get_value_by_path(data, condition['path'])
+    passes = v is not None and check_condition(condition['value'], context, carry_value=v)
+    return passes
+
+def get_value_by_path(data, path):
     path = path.split('.')
     current_part = data
     for key in path:
         if key not in current_part:
-            passes = False
+            return None
         else:
             current_part = current_part[key]
-    if 'value' in condition:
-        passes = passes and check_condition(condition['value'], context, carry_value=current_part)
-    return passes
-
+    return current_part
 
 def do_request(req, context):
     if 'delay' in req:
@@ -492,6 +548,11 @@ if __name__ == '__main__':
         mqtt_client.connect(config['broker']['host'], config['broker']['port'])
         mqtt_client.subscribe(config['broker'].get('subscribe', '#'))
         mqtt_client.loop_start()
+
+    startup_flow = config.get('flows', {}).get(STARTUP_FLOW_NAME, None)
+    if startup_flow:
+        log("Running startup flow")
+        do_flow(STARTUP_FLOW_NAME, {})
     app.run(config['host'], config['port'])
 
     scheduler_events.set()
