@@ -147,7 +147,7 @@ def get_metrics():
 
             s = app_state.get(ts['topic'], {})
             v = get_value_by_path(s, ts.get('path', m_default_path))
-            if not v:
+            if v is None:
                 continue
             v = make_metric_value(v)
             if ts.get('labels', None):
