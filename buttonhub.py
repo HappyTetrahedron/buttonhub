@@ -145,7 +145,7 @@ def get_metrics():
 
         for ts in metric.get("measurements", []):
 
-            s = app_state[ts['topic']]
+            s = app_state.get(ts['topic'], {})
             v = get_value_by_path(s, ts.get('path', m_default_path))
             v = make_metric_value(v)
             if not v:
