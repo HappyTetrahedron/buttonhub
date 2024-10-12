@@ -147,9 +147,9 @@ def get_metrics():
 
             s = app_state.get(ts['topic'], {})
             v = get_value_by_path(s, ts.get('path', m_default_path))
-            v = make_metric_value(v)
             if not v:
                 continue
+            v = make_metric_value(v)
             if ts.get('labels', None):
                 metric_text += ("{}{{{}}} {}\n".format(
                     m_name,
