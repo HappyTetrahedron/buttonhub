@@ -170,9 +170,9 @@ def make_metric_name(topic, path):
     return "{}_{}".format("_".join(t), "_".join(p))
 
 def make_metric_value(raw):
-    if raw == 'ON' or raw == 'true':
+    if raw in ['ON', 'true', 'True', True]:
         return '1'
-    if raw == 'OFF' or raw == 'false':
+    if raw in ['OFF', 'false', 'False', False]:
         return '0'
     try:
         float(raw)
