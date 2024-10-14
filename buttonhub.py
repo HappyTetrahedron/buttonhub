@@ -67,13 +67,13 @@ def _get_context_for_device_request(device_id, request_args):
     return {
         'device_id': device_id,
         'battery': request_args.get('battery'),
-        'time': datetime.datetime.now(),
+        'time': str(datetime.datetime.now()),
     }
 
 
 def _update_device_status(device_id, context):
     device_status[device_id] = {
-        'last_seen': datetime.datetime.now(),
+        'last_seen': str(datetime.datetime.now()),
         'battery': context.get('battery'),
     }
 
@@ -82,7 +82,7 @@ def _get_context_for_mqtt_message(topic, payload):
     return {
         'topic': topic,
         'battery': payload.get('battery'),
-        'time': datetime.datetime.now(),
+        'time': str(datetime.datetime.now()),
     }
 
 
@@ -208,7 +208,7 @@ def run_flow(flow_name):
     do_flow(flow_name, context={
         'agent': request.headers.get('User-Agent'),
         'flow': flow_name,
-        'time': datetime.datetime.now(),
+        'time': str(datetime.datetime.now()),
     })
     return ''
 
@@ -225,7 +225,7 @@ def handle_mqtt(_client, userdata, message):
 
     previous_topic_state = app_state.get(topic)
     if not ignore_topics_regex or not re.search(ignore_topics_regex, topic):
-        parsed_payload['last_seen'] = datetime.datetime.now()
+        parsed_payload['last_seen'] = str(datetime.datetime.now())
         app_state[topic] = parsed_payload
     topics_config = None
     if 'topics' in config:
@@ -560,7 +560,7 @@ if __name__ == '__main__':
     startup_flow = config.get('flows', {}).get(STARTUP_FLOW_NAME, None)
     if startup_flow:
         log("Running startup flow")
-        do_flow(STARTUP_FLOW_NAME, {'startup': True, 'time': datetime.datetime.now()})
+        do_flow(STARTUP_FLOW_NAME, {'startup': True, 'time': str(datetime.datetime.now())})
     app.run(config['host'], config['port'])
 
     scheduler_events.set()
