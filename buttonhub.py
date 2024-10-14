@@ -54,6 +54,9 @@ ACTIONS = {
     '16': 'day',
 }
 
+STATE_FILE = 'buttonhub-state.json'
+STATE_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+
 
 def log(message):
     print(message, flush=True)
@@ -134,6 +137,20 @@ def get_status():
 @app.route('/state')
 def get_state():
     return app_state
+
+
+@app.route('/dump_state', methods=['POST'])
+def dump_state():
+    with open(STATE_FILE, 'w', encoding='utf-8') as file:
+        json.dump(
+            {
+                "state": app_state,
+                "time": datetime.datetime.now().strftime(STATE_TIME_FORMAT),
+            },
+            file,
+        )
+    return 'ok'
+
 
 @app.route('/metrics')
 def get_metrics():
@@ -540,6 +557,19 @@ if __name__ == '__main__':
             timezone = pytz.timezone(config['timezone'])
         if 'ignore-topics' in config:
             ignore_topics_regex = config['ignore-topics']
+
+    try:
+        with open(STATE_FILE, 'r') as state_file:
+            loaded_state = json.load(state_file)
+            now = datetime.datetime.now()
+            loaded_state_time = datetime.datetime.strptime(loaded_state['time'], STATE_TIME_FORMAT)
+            if (now - loaded_state_time) < datetime.timedelta(minutes=2):
+                app_state = loaded_state['state']
+            else:
+                log("Skipping restoring state from stale file")
+    except Exception as e:
+        log("Skipping restoring state from file: {}".format(e))
+
 
     scheduler_thread = threading.Thread(target=scheduler)
     scheduler_thread.start()
