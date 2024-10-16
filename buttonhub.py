@@ -146,6 +146,13 @@ def dump_state():
         json.dump(
             {
                 "state": app_state,
+                "schedules": [
+                    {
+                        'name': s['name'],
+                        'time': s['time'].strftime(STATE_TIME_FORMAT),
+                    }
+                    for s in scheduled_flows
+                ],
                 "time": datetime.datetime.now().strftime(STATE_TIME_FORMAT),
             },
             file,
@@ -567,6 +574,16 @@ if __name__ == '__main__':
                 loaded_state_time = datetime.datetime.strptime(loaded_state['time'], STATE_TIME_FORMAT)
                 if (now - loaded_state_time) < datetime.timedelta(minutes=2):
                     app_state = loaded_state['state']
+                    scheduled_flows = [
+                        {
+                            'name': s['name'],
+                            'time': datetime.datetime.strptime(s['time'], STATE_TIME_FORMAT),
+                            'context': {
+                                'restored_at': str(now),
+                            },
+                        }
+                        for s in loaded_state['schedules']
+                    ]
                     log("Loaded state from file")
                 else:
                     log("Skipping restoring state from stale file")
