@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import datetime
 import json
+import os
 import threading
 import time
 from optparse import OptionParser
@@ -559,14 +560,17 @@ if __name__ == '__main__':
             ignore_topics_regex = config['ignore-topics']
 
     try:
-        with open(STATE_FILE, 'r') as state_file:
-            loaded_state = json.load(state_file)
-            now = datetime.datetime.now()
-            loaded_state_time = datetime.datetime.strptime(loaded_state['time'], STATE_TIME_FORMAT)
-            if (now - loaded_state_time) < datetime.timedelta(minutes=2):
-                app_state = loaded_state['state']
-            else:
-                log("Skipping restoring state from stale file")
+        if os.path.exists(STATE_FILE):
+            with open(STATE_FILE, 'r') as state_file:
+                loaded_state = json.load(state_file)
+                now = datetime.datetime.now()
+                loaded_state_time = datetime.datetime.strptime(loaded_state['time'], STATE_TIME_FORMAT)
+                if (now - loaded_state_time) < datetime.timedelta(minutes=2):
+                    app_state = loaded_state['state']
+                    log("Loaded state from file")
+                else:
+                    log("Skipping restoring state from stale file")
+            os.remove(STATE_FILE)
     except Exception as e:
         log("Skipping restoring state from file: {}".format(e))
 
