@@ -473,6 +473,12 @@ def schedule_flow(req, context):
     if 'interval' in req:
         timedelta = _parse_time_interval(req['interval'])
         schedule_time = datetime.datetime.now() + timedelta
+    if 'time' in req:
+        h, m = parse_time(req['time'])
+        now = datetime.datetime.now()
+        schedule_time = now.replace(hour=h, minute=m)
+        if now > schedule_time:
+            schedule_time = schedule_time + datetime.timedelta(days=1)
     if not schedule_time:
         return
 
