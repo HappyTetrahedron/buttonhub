@@ -162,21 +162,19 @@ def dump_state():
 
 @app.route('/metrics')
 def get_metrics():
-    prom_metrics = {}
     metric_text = ""
     for metric in config.get("metrics", []):
-        m_name = "{}_{}".format(METRIC_PREFIX, metric['name'])
+        m_name = f"{METRIC_PREFIX}_{metric['name']}"
         m_help = metric.get('help', "A buttonhub metric.")
         m_type = metric.get('type', 'gauge')
         if m_type not in VALID_METRIC_TYPES:
             m_type = 'gauge'
-        metric_text += "# HELP {} {}\n".format(m_name, m_help)
-        metric_text += "# TYPE {} {}\n".format(m_name, m_type)
+        metric_text += f"# HELP {m_name} {m_help}\n"
+        metric_text += f"# TYPE {m_name} {m_type}\n"
 
         m_default_path = metric.get('path', None)
 
         for ts in metric.get("measurements", []):
-
             s = app_state.get(ts['topic'], {})
             v = get_value_by_path(s, ts.get('path', m_default_path))
             if v is None:
@@ -185,21 +183,18 @@ def get_metrics():
             if ts.get('labels', None):
                 metric_text += ("{}{{{}}} {}\n".format(
                     m_name,
-                    ','.join(['"{}"="{}"'.format(l, v) for l, v in ts['labels'].items()]),
+                    ','.join([f'"{l}"="{v}"' for l, v in ts['labels'].items()]),
                     v
                 ))
             else:
-                metric_text += ("{} {}\n".format(
-                    m_name,
-                    v
-                ))
+                metric_text += f"{m_name} {v}\n"
 
     return metric_text
 
 def make_metric_name(topic, path):
     t = topic.split('/')
     p = path.split('.')
-    return "{}_{}".format("_".join(t), "_".join(p))
+    return f"{t}_{p}"
 
 def make_metric_value(raw):
     if raw in ['ON', 'true', 'True', True]:
@@ -427,6 +422,8 @@ def do_request(req, context):
         cancel_scheduled_flow(req, context)
     if 'set-state' in req:
         do_set_state(req, context)
+    if 'increment-state' in req:
+        do_increment_state(req, context)
 
 
 def do_http(req, context):
@@ -531,6 +528,17 @@ def do_set_state(req, context):
     value['context'] = context
     app_state[key] = value
     log("Set state for {} to {}".format(key, value))
+
+
+def do_increment_state(req, context):
+    topic = req.get('increment-state')
+    path = req.get('path') # TODO: Add support for multi-level paths?
+    data = app_state.get(topic, {})
+    value = {
+        path: int(get_value_by_path(data, path) or 0) + 1,
+    }
+    value = _apply_context_to_template(value, context)
+    app_state[topic] = value
 
 
 def scheduler():
