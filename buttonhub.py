@@ -189,7 +189,7 @@ def get_metrics():
             else:
                 metric_text += f"{m_name} {v}\n"
 
-    return metric_text
+    return Response(metric_text, mimetype="text/plain")
 
 def make_metric_name(topic, path):
     t = topic.split('/')
