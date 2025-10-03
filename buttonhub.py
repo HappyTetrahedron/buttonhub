@@ -2,6 +2,7 @@
 import datetime
 import json
 import os
+import logging
 import threading
 import time
 from optparse import OptionParser
@@ -18,6 +19,10 @@ from flask import request
 from flask import Response
 
 app = Flask(__name__)
+
+werkzeug_log = logging.getLogger('werkzeug')
+werkzeug_log.disabled = True
+
 app_state = {}
 device_status = {}
 mqtt_client = None
@@ -267,7 +272,6 @@ def handle_mqtt(_client, userdata, message):
         return
 
     if topics_config.get('ignore_repetition') and parsed_payload and (previous_topic_state or {}).get(action_key) == parsed_payload.get(action_key):
-        log("Skipping topic {} with action {}={}, ignoring repetition".format(topic, action_key, action))
         return
 
     log("Handling topic {} with action {}={}".format(topic, action_key, action))
@@ -307,7 +311,6 @@ def do_action(action_config, action, context):
             if 'condition' in req:
                 do_it = check_condition(req['condition'], context)
             if do_it:
-                log("Performing request due to condition match")
                 do_request(req, context)
                 if mode == CONDITION_FIRST:
                     return
