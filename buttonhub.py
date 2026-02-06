@@ -471,13 +471,15 @@ def schedule_flow(req, context):
     global scheduled_flows
     flow_name = req.get('schedule-flow', '')
     schedule_time = None
+    now = datetime.datetime.now()
+    second_precision = False
     if 'interval' in req:
         timedelta = _parse_time_interval(req['interval'])
-        schedule_time = datetime.datetime.now() + timedelta
+        second_precision = timedelta.seconds != 0
+        schedule_time = now + timedelta
     if 'time' in req:
         h, m = parse_time(req['time'])
-        now = datetime.datetime.now()
-        schedule_time = now.replace(hour=h, minute=m)
+        schedule_time = now.replace(hour=h, minute=m, second=0)
         if now > schedule_time:
             schedule_time = schedule_time + datetime.timedelta(days=1)
     if not schedule_time:
@@ -489,6 +491,7 @@ def schedule_flow(req, context):
         'name': flow_name,
         'time': schedule_time,
         'context': context,
+        'second_precision': second_precision,
     })
     scheduler_event.set()
 
@@ -497,12 +500,17 @@ def _parse_time_interval(interval_string):
     parts = interval_string.split(':')
     hours = 0
     minutes = 0
-    if len(parts) == 2:
+    seconds = 0
+    if len(parts) == 3:
+        hours = int(parts[0])
+        minutes = int(parts[1])
+        seconds = int(parts[2])
+    elif len(parts) == 2:
         hours = int(parts[0])
         minutes = int(parts[1])
     elif len(parts) == 1:
         minutes = int(parts[0])
-    return datetime.timedelta(hours=hours, minutes=minutes)
+    return datetime.timedelta(hours=hours, minutes=minutes, seconds=seconds)
 
 
 def cancel_scheduled_flow(req, context):
@@ -523,6 +531,15 @@ def run_scheduled_flows():
         do_flow(flow_name, context={})
     if due_flows:
         scheduled_flows = [flow for flow in scheduled_flows if flow['time'] >= now]
+
+
+def _has_upcoming_precisely_scheduled_flow():
+    global scheduled_flows
+    one_minute_from_now = datetime.datetime.now() + datetime.timedelta(minutes=1)
+    for flow in scheduled_flows:
+        if flow['second_precision'] and flow['time'] < one_minute_from_now:
+            return True
+    return False
 
 
 def do_set_state(req, context):
@@ -551,7 +568,10 @@ def scheduler():
         try:
             scheduler_event.clear()
             run_scheduled_flows()
-            scheduler_event.wait(60)
+            if _has_upcoming_precisely_scheduled_flow():
+                scheduler_event.wait(1)
+            else:
+                scheduler_event.wait(60)
             error_count = 0
         except Exception as e:
             error_count = error_count + 1
