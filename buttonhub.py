@@ -17,6 +17,7 @@ import yaml
 from flask import Flask
 from flask import request
 from flask import Response
+from flask_cors import CORS
 
 app = Flask(__name__)
 
@@ -632,6 +633,10 @@ if __name__ == '__main__':
 
     scheduler_thread = threading.Thread(target=scheduler)
     scheduler_thread.start()
+
+    if 'cors' in config:
+        print(config['cors'].get('origins', "*"))
+        CORS(app, origins=config['cors'].get('origins', "*"))
 
     if 'broker' in config:
         mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, 'buttonhub')

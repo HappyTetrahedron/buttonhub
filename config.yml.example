@@ -21,3 +21,7 @@ buttons:
 host: 0.0.0.0
 port: 7788
 location: Bern
+cors:
+  origins:
+  - http://foo.bar
+  - http://localhost:7653

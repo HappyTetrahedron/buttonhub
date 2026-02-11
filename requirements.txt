@@ -1,5 +1,6 @@
 pyyaml
 flask
+flask-cors
 requests
 paho-mqtt==2.0.0
 astral==3.2
