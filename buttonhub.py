@@ -156,6 +156,7 @@ def dump_state():
                     {
                         'name': s['name'],
                         'time': s['time'].strftime(STATE_TIME_FORMAT),
+                        'second_precision': s['second_precision'] == True,
                     }
                     for s in scheduled_flows
                 ],
@@ -537,7 +538,7 @@ def _has_upcoming_precisely_scheduled_flow():
     global scheduled_flows
     one_minute_from_now = datetime.datetime.now() + datetime.timedelta(minutes=1)
     for flow in scheduled_flows:
-        if flow['second_precision'] and flow['time'] < one_minute_from_now:
+        if flow.get('second_precision') and flow['time'] < one_minute_from_now:
             return True
     return False
 
@@ -616,6 +617,7 @@ if __name__ == '__main__':
                         {
                             'name': s['name'],
                             'time': datetime.datetime.strptime(s['time'], STATE_TIME_FORMAT),
+                            'second_precision': s.get('second_precision') == True,
                             'context': {
                                 'restored_at': str(now),
                             },
